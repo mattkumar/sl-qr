@@ -21,12 +21,12 @@ ui <- fluidPage(
   fluidRow(
     column(3),
     column(3,
-           selectInput("x_var", "Choose X Variable:", 
+           selectInput("x_var", "Choose X-Variable:", 
                        choices = c("weight", "height", "age", "income", "blood_pressure", "cholesterol", "bmi", "heart_rate", "glucose"), 
                        selected = "weight")
     ),
     column(3,
-           selectInput("y_var", "Choose Y Variable:", 
+           selectInput("y_var", "Choose Y-Variable:", 
                        choices = c("weight", "height", "age", "income", "blood_pressure", "cholesterol", "bmi", "heart_rate", "glucose"), 
                        selected = "height")
     ),
