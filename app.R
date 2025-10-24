@@ -1,43 +1,100 @@
 library(shiny)
 library(qrcode)
-library(officer)
+library(png)
 
 set.seed(123)
 patient_data <- data.frame(
-  id = paste0("P", sprintf("%02d", 1:10)),
-  weight = runif(10, min = 110, max = 210),
-  height = runif(10, min = 150, max = 184),
-  age = rnorm(10, mean = 30, sd = 10),
+  id = paste0("P", sprintf("%03d", 1:100)),
+  weight = runif(100, min = 110, max = 210),
+  height = runif(100, min = 150, max = 184),
+  age = rnorm(100, mean = 45, sd = 15),
+  income = rnorm(100, mean = 65000, sd = 25000),
+  blood_pressure = rnorm(100, mean = 125, sd = 20),
+  cholesterol = rnorm(100, mean = 180, sd = 35),
+  bmi = runif(100, min = 18, max = 35),
+  heart_rate = rnorm(100, mean = 72, sd = 12),
+  glucose = rnorm(100, mean = 100, sd = 15),
   stringsAsFactors = FALSE
 )
 
 ui <- fluidPage(
-  titlePanel("Demo: Plot with QR Code"),
-  sidebarLayout(
-    sidebarPanel(
-      selectInput("x_var", "X-axis Variable:", 
-                  choices = c("weight", "height", "age"), 
-                  selected = "weight"),
-      selectInput("y_var", "Y-axis Variable:", 
-                  choices = c("weight", "height", "age"), 
-                  selected = "height"),
-      downloadButton("download_plot", "Download Plot")
+  titlePanel("Demo App"),
+  fluidRow(
+    column(3),
+    column(3,
+           selectInput("x_var", "Choose X Variable:", 
+                       choices = c("weight", "height", "age", "income", "blood_pressure", "cholesterol", "bmi", "heart_rate", "glucose"), 
+                       selected = "weight")
     ),
-    mainPanel(
-      plotOutput("scatter_plot", height = "500px")
-    )
-  )
+    column(3,
+           selectInput("y_var", "Choose Y Variable:", 
+                       choices = c("weight", "height", "age", "income", "blood_pressure", "cholesterol", "bmi", "heart_rate", "glucose"), 
+                       selected = "height")
+    ),
+    column(3)
+  ),
+  plotOutput("scatter_plot", height = "500px")
 )
 
 server <- function(input, output, session) {
   
   create_plot <- reactive({
     function() {
+      # Create vibrant color gradient based on data density
+      colors <- colorRampPalette(c("#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"))(100)
+      point_colors <- colors[sample(1:100, 100, replace = TRUE)]
+      
+      # Main scatter plot with enhanced styling
+      par(bg = "#f8f9fa", family = "sans")
       plot(patient_data[[input$x_var]], patient_data[[input$y_var]],
-           xlab = input$x_var,
-           ylab = input$y_var,
-           main = paste("Plot:", input$x_var, "vs", input$y_var),
-           pch = 16, col = "blue", cex = 1.2)
+           xlab = toupper(gsub("_", " ", input$x_var)),
+           ylab = toupper(gsub("_", " ", input$y_var)),
+           main = paste(toupper(gsub("_", " ", input$x_var)), "vs", toupper(gsub("_", " ", input$y_var))),
+           pch = 19, col = point_colors, cex = 1.5,
+           col.main = "#2c3e50", col.lab = "#34495e", col.axis = "#7f8c8d",
+           cex.main = 1.4, cex.lab = 1.2, cex.axis = 1.1,
+           panel.first = {
+             grid(col = "#ecf0f1", lty = 1, lwd = 0.8)
+           })
+      
+      # Add subtle trend line
+      lm_fit <- lm(patient_data[[input$y_var]] ~ patient_data[[input$x_var]])
+      abline(lm_fit, col = "#e74c3c", lwd = 3, lty = 2)
+      
+      # Create QR code and add it as an inset
+      qr_data <- paste("User matt\nDate", Sys.Date(), "\nFilters", input$x_var, input$y_var)
+      qr_code_obj <- qrcode::qr_code(qr_data)
+      
+      # Get plot dimensions
+      usr <- par("usr")
+      plt <- par("plt")
+      
+      # Position for bottom left corner
+      x_range <- usr[2] - usr[1]
+      y_range <- usr[4] - usr[3]
+      
+      qr_width <- x_range * 0.12
+      qr_height <- y_range * 0.12
+      
+      qr_xleft <- usr[1] + x_range * 0.03
+      qr_xright <- qr_xleft + qr_width
+      qr_ybottom <- usr[3] + y_range * 0.03
+      qr_ytop <- qr_ybottom + qr_height
+      
+      # Add rounded background for QR code
+      rect(qr_xleft - qr_width * 0.08, qr_ybottom - qr_height * 0.08,
+           qr_xright + qr_width * 0.08, qr_ytop + qr_height * 0.08,
+           col = "#ffffff", border = "#bdc3c7", lwd = 2)
+      
+      # Convert QR code to raster and plot
+      par(fig = c(
+        (qr_xleft - usr[1]) / x_range * (plt[2] - plt[1]) + plt[1],
+        (qr_xright - usr[1]) / x_range * (plt[2] - plt[1]) + plt[1],
+        (qr_ybottom - usr[3]) / y_range * (plt[4] - plt[3]) + plt[3],
+        (qr_ytop - usr[3]) / y_range * (plt[4] - plt[3]) + plt[3]
+      ), new = TRUE, mar = c(0, 0, 0, 0))
+      
+      plot(qr_code_obj, axes = FALSE, xlab = "", ylab = "", mar = c(0, 0, 0, 0))
     }
   })
   
@@ -45,33 +102,6 @@ server <- function(input, output, session) {
     plot_func <- create_plot()
     plot_func()
   })
-  
-  output$download_plot <- downloadHandler(
-    filename = function() paste0("result_with_qr_", Sys.Date(), ".pptx"),
-    content = function(file) {
-      plot_func <- create_plot()
-      
-      png_f <- tempfile(fileext = ".png")
-      png(png_f, width = 1200, height = 800, res = 300, bg = "white")
-      plot_func()
-      dev.off()
-      
-      qr_data <- paste("User matt\nDate", Sys.Date(), "\nFilters", input$x_var, input$y_var)
-      qr_png_f <- tempfile(fileext = ".png")
-      png(qr_png_f, width = 200, height = 200)
-      plot(qrcode::qr_code(qr_data))
-      dev.off()
-      
-      officer::read_pptx() %>%
-        officer::add_slide(layout = "Title and Content", master = "Office Theme") %>%
-        officer::ph_with(value = officer::external_img(png_f, width = 10, height = 6.67),
-                         location = officer::ph_location_type(type = "body")) %>%
-        officer::ph_with(value = officer::external_img(qr_png_f, width = 0.5, height = 0.5),
-                         location = officer::ph_location(left = 8.5, top = 0.5, width = 0.75, height = 0.75)) %>%
-        print(target = file)
-    }
-  )
 }
 
 shinyApp(ui = ui, server = server)
-
