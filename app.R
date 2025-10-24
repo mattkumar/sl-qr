@@ -18,7 +18,6 @@ patient_data <- data.frame(
 )
 
 ui <- fluidPage(
-  titlePanel("Demo App"),
   fluidRow(
     column(3),
     column(3,
@@ -65,33 +64,38 @@ server <- function(input, output, session) {
       qr_data <- paste("User matt\nDate", Sys.Date(), "\nFilters", input$x_var, input$y_var)
       qr_code_obj <- qrcode::qr_code(qr_data)
       
-      # Get plot dimensions
+      # Get plot dimensions and device info for pixel calculations
       usr <- par("usr")
       plt <- par("plt")
       
-      # Position for bottom left corner
-      x_range <- usr[2] - usr[1]
-      y_range <- usr[4] - usr[3]
+      # QR code dimensions - fixed at 150x150 pixels
+      qr_pixels <- 150
       
-      qr_width <- x_range * 0.12
-      qr_height <- y_range * 0.12
+      # Get device dimensions in inches
+      dev_width_in <- par("din")[1]
+      dev_height_in <- par("din")[2]
       
-      qr_xleft <- usr[1] + x_range * 0.03
+      # Convert to plot coordinates based on device size
+      plot_width <- usr[2] - usr[1]
+      plot_height <- usr[4] - usr[3]
+      
+      # Calculate QR size in plot units (approximation)
+      qr_width <- plot_width * (qr_pixels / (dev_width_in * 72)) * (plt[2] - plt[1])
+      qr_height <- plot_height * (qr_pixels / (dev_height_in * 72)) * (plt[4] - plt[3])
+      
+      # Position with reduced padding from left (closer to Y axis)
+      padding_factor <- 0.01
+      qr_xleft <- usr[1] + plot_width * padding_factor
       qr_xright <- qr_xleft + qr_width
-      qr_ybottom <- usr[3] + y_range * 0.03
+      qr_ybottom <- usr[3] + plot_height * 0.02
       qr_ytop <- qr_ybottom + qr_height
       
-      # Add rounded background for QR code
-      rect(qr_xleft - qr_width * 0.08, qr_ybottom - qr_height * 0.08,
-           qr_xright + qr_width * 0.08, qr_ytop + qr_height * 0.08,
-           col = "#ffffff", border = "#bdc3c7", lwd = 2)
-      
-      # Convert QR code to raster and plot
+      # Convert QR code to raster and plot (no background/border)
       par(fig = c(
-        (qr_xleft - usr[1]) / x_range * (plt[2] - plt[1]) + plt[1],
-        (qr_xright - usr[1]) / x_range * (plt[2] - plt[1]) + plt[1],
-        (qr_ybottom - usr[3]) / y_range * (plt[4] - plt[3]) + plt[3],
-        (qr_ytop - usr[3]) / y_range * (plt[4] - plt[3]) + plt[3]
+        (qr_xleft - usr[1]) / plot_width * (plt[2] - plt[1]) + plt[1],
+        (qr_xright - usr[1]) / plot_width * (plt[2] - plt[1]) + plt[1],
+        (qr_ybottom - usr[3]) / plot_height * (plt[4] - plt[3]) + plt[3],
+        (qr_ytop - usr[3]) / plot_height * (plt[4] - plt[3]) + plt[3]
       ), new = TRUE, mar = c(0, 0, 0, 0))
       
       plot(qr_code_obj, axes = FALSE, xlab = "", ylab = "", mar = c(0, 0, 0, 0))
